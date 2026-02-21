@@ -42,8 +42,6 @@ Follow these steps to run the project on your local machine.
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/PritamHazra2708/SIR-Model-For-HumanAI.git
-cd SIR-Model-For-HumanAI
-cd gsoc-sir-project
 ```
 
 ### 2. Setup the Backend
