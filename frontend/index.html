@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSoC '26 - SIR Model ML Emulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <header class="mb-10 text-center">
+            <h1 class="text-4xl font-bold text-blue-400 mb-2">Learning the SIR Epidemic Model</h1>
+            <p class="text-slate-400">GSoC 2026 Proposal Prototype (Stochastic vs ML Deterministic)</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700 h-fit">
+                <h2 class="text-xl font-semibold mb-6 border-b border-slate-600 pb-2">Parameters</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm text-slate-300 mb-1">Population (N)</label>
+                    <input type="number" id="population" value="1000" class="w-full bg-slate-700 rounded p-2 text-white outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-sm text-slate-300 mb-1">Initial Infected (I0)</label>
+                    <input type="number" id="infected" value="5" class="w-full bg-slate-700 rounded p-2 text-white outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm text-slate-300 mb-1">Infection Rate (β): <span id="betaVal">0.3</span></label>
+                    <input type="range" id="beta" min="0.01" max="1.0" step="0.01" value="0.3" class="w-full accent-blue-500" oninput="document.getElementById('betaVal').innerText = this.value">
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm text-slate-300 mb-1">Recovery Rate (γ): <span id="gammaVal">0.1</span></label>
+                    <input type="range" id="gamma" min="0.01" max="1.0" step="0.01" value="0.1" class="w-full accent-blue-500" oninput="document.getElementById('gammaVal').innerText = this.value">
+                </div>
+
+                <button onclick="runSimulation()" class="w-full bg-blue-600 hover:bg-blue-500 transition-colors py-3 rounded-lg font-bold shadow-lg">
+                    Run Simulation & Predict
+                </button>
+            </div>
+
+            <div class="md:col-span-2 bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+                <h2 class="text-xl font-semibold mb-4 border-b border-slate-600 pb-2">Epidemic Curves</h2>
+                <div class="relative h-96 w-full">
+                    <canvas id="sirChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let sirChart = null;
+
+        async function runSimulation() {
+            const payload = {
+                population: parseInt(document.getElementById('population').value),
+                initial_infected: parseInt(document.getElementById('infected').value),
+                beta: parseFloat(document.getElementById('beta').value),
+                gamma: parseFloat(document.getElementById('gamma').value),
+                days: 100
+            };
+
+            // Call FastAPI Backend
+            const response = await fetch('http://127.0.0.1:8000/simulate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            
+            plotGraph(data);
+        }
+
+        function plotGraph(data) {
+            const ctx = document.getElementById('sirChart').getContext('2d');
+            
+            const labels = Array.from({length: 101}, (_, i) => i); // 0 to 100 days
+
+            if (sirChart) {
+                sirChart.destroy();
+            }
+
+            sirChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        // Stochastic Curves (Dashed/Lighter)
+                        { label: 'S (Stochastic)', data: data.stochastic.S, borderColor: 'rgba(56, 189, 248, 0.4)', borderDash: [5, 5], pointRadius: 0, tension: 0.1 },
+                        { label: 'I (Stochastic)', data: data.stochastic.I, borderColor: 'rgba(248, 113, 113, 0.4)', borderDash: [5, 5], pointRadius: 0, tension: 0.1 },
+                        { label: 'R (Stochastic)', data: data.stochastic.R, borderColor: 'rgba(74, 222, 128, 0.4)', borderDash: [5, 5], pointRadius: 0, tension: 0.1 },
+                        
+                        // ML Predicted / Deterministic Curves (Solid)
+                        { label: 'S (ML Predicted)', data: data.deterministic_ml.S, borderColor: 'rgb(56, 189, 248)', borderWidth: 3, pointRadius: 0, tension: 0.4 },
+                        { label: 'I (ML Predicted)', data: data.deterministic_ml.I, borderColor: 'rgb(248, 113, 113)', borderWidth: 3, pointRadius: 0, tension: 0.4 },
+                        { label: 'R (ML Predicted)', data: data.deterministic_ml.R, borderColor: 'rgb(74, 222, 128)', borderWidth: 3, pointRadius: 0, tension: 0.4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { title: { display: true, text: 'Population', color: '#cbd5e1' }, grid: { color: '#334155' } },
+                        x: { title: { display: true, text: 'Days', color: '#cbd5e1' }, grid: { color: '#334155' } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#f8fafc' } }
+                    }
+                }
+            });
+        }
+
+        // Run once on load
+        window.onload = runSimulation;
+    </script>
+</body>
+</html>
